@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.model_selection import KFold
@@ -129,6 +130,7 @@ models = {
         iterations=300,
         learning_rate=0.05,
         depth=4,
+        allow_writing_files=False,  # don't create the catboost_info folder
         random_seed=RANDOM_STATE,
         verbose=0),              # don't print every training round
 }
@@ -189,44 +191,36 @@ print(best_df.round(3).to_string(index=False))
 results_df.to_csv("drug_model_metrics.csv", index=False)
 
 
-# One figure per drug: 4 bar plots (one per metric), 6 bars (one per model)
+# One figure per drug: 4 groups on x (one per metric), 6 bars per group (one per model)
 METRICS = ["MAE", "MSE", "RMSE", "R2"]
 MODEL_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"]
 FIG_DIR = "figures"
 os.makedirs(FIG_DIR, exist_ok=True)
 
-model_names = list(models.keys())
-colors = dict(zip(model_names, MODEL_COLORS))
+model_names = results_df["Model"].unique().tolist()
+n_models = len(model_names)
+bar_width = 0.8 / n_models          # the 6 bars of a group share 80% of the space
+group_pos = np.arange(len(METRICS)) # x position of each metric group
 
 for drug in sorted(results_df["Drug"].unique()):
     # Metrics of every model for the current drug, in the same model order
     drug_results = results_df[results_df["Drug"] == drug].set_index("Model").loc[model_names]
 
-    fig, axes = plt.subplots(2, 2, figsize=(13, 9))
-    for ax, metric in zip(axes.flat, METRICS):
-        values = drug_results[metric]
-        bars = ax.bar(model_names, values, color=[colors[m] for m in model_names], width=0.7)
-        labels = ax.bar_label(bars, fmt="%.3f", padding=3, fontsize=9, color="#333333")
+    fig, ax = plt.subplots(figsize=(12, 6))
+    for i, (model_name, color) in enumerate(zip(model_names, MODEL_COLORS)):
+        # Shift each model's bars so they sit side by side inside every group
+        offset = (i - (n_models - 1) / 2) * bar_width
+        ax.bar(group_pos + offset, drug_results.loc[model_name, METRICS],
+               width=bar_width * 0.9, color=color, label=model_name)
 
-        # Bold the best value (highest R2, lowest error)
-        best = values.idxmax() if metric == "R2" else values.idxmin()
-        labels[model_names.index(best)].set_fontweight("bold")
-
-        lower = "higher is better" if metric == "R2" else "lower is better"
-        ax.set_title(f"{metric} ({lower})", loc="left", fontsize=12)
-        ax.set_ylabel(metric)
-        # Leave room above (and below, for negative R2) for the value labels
-        low, high = min(values.min(), 0), max(values.max(), 0)
-        pad = (high - low) * 0.15
-        ax.set_ylim(low - (pad if low < 0 else 0), high + pad)
-        ax.axhline(0, color="#999999", linewidth=0.8)
-        ax.tick_params(axis="x", labelrotation=30)
-        plt.setp(ax.get_xticklabels(), ha="right", rotation_mode="anchor")
-        ax.spines[["top", "right"]].set_visible(False)
-        ax.grid(axis="y", color="#e5e5e5", linewidth=0.8)
-        ax.set_axisbelow(True)
-
-    fig.suptitle(f"{drug}: {N_FOLDS}-fold CV metrics per model", fontsize=15)
+    ax.set_xticks(group_pos, METRICS)
+    ax.set_title(f"Drug: {drug}", fontsize=15)
+    ax.set_ylabel("Value")
+    ax.axhline(0, color="#999999", linewidth=0.8)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.grid(axis="y", color="#e5e5e5", linewidth=0.8)
+    ax.set_axisbelow(True)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.08), ncol=n_models, frameon=False)
     fig.tight_layout()
     fig.savefig(os.path.join(FIG_DIR, f"{drug}.png"), dpi=150)
 
