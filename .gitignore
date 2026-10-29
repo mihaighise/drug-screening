@@ -1,0 +1,4 @@
+.venv/
+__pycache__/
+# Dataset is too large for GitHub (331 MB)
+hw4-drug-screening-data.csv
