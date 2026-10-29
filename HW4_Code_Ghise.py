@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import shap
 from sklearn.model_selection import KFold
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
@@ -223,5 +224,47 @@ for drug in sorted(results_df["Drug"].unique()):
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.08), ncol=n_models, frameon=False)
     fig.tight_layout()
     fig.savefig(os.path.join(FIG_DIR, f"{drug}.png"), dpi=150)
+
+
+# SHAP on the best regressor of each drug: top 10 most important genes
+TOP_K = 10
+SHAP_DIR = "shap_plots"
+os.makedirs(SHAP_DIR, exist_ok=True)
+top_features = []
+
+for _, row in best_df.iterrows():
+    drug, model_name = row["Drug"], row["Model"]
+    drug_df = df[df["DRUG_NAME"] == drug]
+    X = drug_df[genes]
+    y = drug_df[TARGET]
+
+    # Refit the best model on all of the drug's data
+    model = models[model_name]()
+    model.fit(X, y)
+
+    # TreeExplainer computes exact SHAP values for tree-based models
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer(X)
+
+    # Importance of a gene = mean |SHAP value| over all cell lines
+    importance = pd.Series(np.abs(shap_values.values).mean(axis=0), index=genes)
+    importance = importance.sort_values(ascending=False).head(TOP_K)
+    print(f"\n{drug} ({model_name}) top {TOP_K} genes:")
+    for rank, (gene, value) in enumerate(importance.items(), start=1):
+        print(f"  {rank:2d}. {gene}: {value:.4f}")
+        top_features.append({"Drug": drug, "Model": model_name, "Rank": rank,
+                             "Gene": gene, "Mean |SHAP|": value})
+
+    # Bar plot of the top 10 genes (+1 bar for the sum of all other genes)
+    plt.figure()
+    shap.plots.bar(shap_values, max_display=TOP_K + 1, show=False)
+    fig = plt.gcf()
+    fig.set_size_inches(10, 6)
+    plt.title(f"Drug: {drug} ({model_name}): top {TOP_K} genes by mean |SHAP|", fontsize=13)
+    fig.tight_layout()
+    fig.savefig(os.path.join(SHAP_DIR, f"{drug}_shap.png"), dpi=150)
+
+# Save the top genes of every drug for the report
+pd.DataFrame(top_features).to_csv("shap_top10_features.csv", index=False)
 
 plt.show()
