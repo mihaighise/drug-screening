@@ -207,6 +207,9 @@ for drug in sorted(results_df["Drug"].unique()):
     # Metrics of every model for the current drug, in the same model order
     drug_results = results_df[results_df["Drug"] == drug].set_index("Model").loc[model_names]
 
+    # Best model of each metric (lowest error, highest R2)
+    best = {m: drug_results[m].idxmax() if m == "R2" else drug_results[m].idxmin() for m in METRICS}
+
     fig, ax = plt.subplots(figsize=(12, 6))
     for i, (model_name, color) in enumerate(zip(model_names, MODEL_COLORS)):
         # Shift each model's bars so they sit side by side inside every group
@@ -214,7 +217,12 @@ for drug in sorted(results_df["Drug"].unique()):
         bars = ax.bar(group_pos + offset, drug_results.loc[model_name, METRICS],
                       width=bar_width * 0.9, color=color, label=model_name)
         # Value on top of each bar, tilted so the 6 labels of a group don't overlap
-        ax.bar_label(bars, fmt="%.3f", padding=3, fontsize=8, rotation=45, color="#333333")
+        labels = ax.bar_label(bars, fmt="%.3f", padding=5, fontsize=8, rotation=45, color="#333333")
+        # Put the best value of each metric inside a rectangle
+        for label, metric in zip(labels, METRICS):
+            if best[metric] == model_name:
+                label.set_bbox(dict(boxstyle="square,pad=0.25", facecolor="white",
+                                    edgecolor="#222222", linewidth=1))
 
     # Leave room above (and below, for negative R2) for the rotated labels
     low = min(drug_results[METRICS].min().min(), 0)
