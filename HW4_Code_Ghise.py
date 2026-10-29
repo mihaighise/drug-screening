@@ -211,8 +211,16 @@ for drug in sorted(results_df["Drug"].unique()):
     for i, (model_name, color) in enumerate(zip(model_names, MODEL_COLORS)):
         # Shift each model's bars so they sit side by side inside every group
         offset = (i - (n_models - 1) / 2) * bar_width
-        ax.bar(group_pos + offset, drug_results.loc[model_name, METRICS],
-               width=bar_width * 0.9, color=color, label=model_name)
+        bars = ax.bar(group_pos + offset, drug_results.loc[model_name, METRICS],
+                      width=bar_width * 0.9, color=color, label=model_name)
+        # Value on top of each bar, tilted so the 6 labels of a group don't overlap
+        ax.bar_label(bars, fmt="%.3f", padding=3, fontsize=8, rotation=45, color="#333333")
+
+    # Leave room above (and below, for negative R2) for the rotated labels
+    low = min(drug_results[METRICS].min().min(), 0)
+    high = drug_results[METRICS].max().max()
+    pad = (high - low) * 0.15
+    ax.set_ylim(low - (pad if low < 0 else 0), high + pad)
 
     ax.set_xticks(group_pos, METRICS)
     ax.set_title(f"Drug: {drug}", fontsize=15)
@@ -255,9 +263,10 @@ for _, row in best_df.iterrows():
         top_features.append({"Drug": drug, "Model": model_name, "Rank": rank,
                              "Gene": gene, "Mean |SHAP|": value})
 
-    # Bar plot of the top 10 genes (+1 bar for the sum of all other genes)
+    # Bar plot of only the top 10 genes (no "sum of other features" bar, which would dwarf them)
+    top_idx = [genes.index(g) for g in importance.index]
     plt.figure()
-    shap.plots.bar(shap_values, max_display=TOP_K + 1, show=False)
+    shap.plots.bar(shap_values[:, top_idx], max_display=TOP_K, show=False)
     fig = plt.gcf()
     fig.set_size_inches(10, 6)
     plt.title(f"Drug: {drug} ({model_name}): top {TOP_K} genes by mean |SHAP|", fontsize=13)
