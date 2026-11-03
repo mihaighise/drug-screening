@@ -42,7 +42,8 @@ ax.spines[["top", "right"]].set_visible(False)
 ax.grid(axis="y", color="#e5e5e5", linewidth=0.8)
 ax.set_axisbelow(True)
 fig.tight_layout()
-# plt.show()
+fig.savefig(os.path.join("drug_samples.png"), dpi=150)
+plt.show()
 
 
 # Check for missing value in the data set
@@ -91,7 +92,7 @@ def evaluate_model(y_test, y_pred):
         "R2": r2
     }
 
-# Models to compare for every drug (add the other tree-based regressors here)
+# Models to compare for every drug
 models = {
     "Decision Tree": lambda: DecisionTreeRegressor(
         max_depth=5,
@@ -147,7 +148,9 @@ for drug in sorted(df["DRUG_NAME"].unique()):
     y = drug_df[TARGET]
     print(f"\n{drug} ({len(drug_df)} samples)")
 
+    # Iterate through all models saved in the dictionary
     for model_name, make_model in models.items():
+        # Initialize model scores
         scores = {
             "MAE": 0,
             "MSE": 0,
@@ -155,6 +158,7 @@ for drug in sorted(df["DRUG_NAME"].unique()):
             "R2": 0
         }
 
+        # Iterate through cross-validation folds
         for fold, (train_idx, test_idx) in enumerate(kf.split(X)):
             X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
             y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
@@ -162,6 +166,8 @@ for drug in sorted(df["DRUG_NAME"].unique()):
             # No scaling needed since we're using Decision Tree based algos
             model = make_model()
             model.fit(X_train, y_train)
+            
+            # Predict results
             y_pred = model.predict(X_test)
 
             # Evaluate model on the fold
@@ -177,9 +183,10 @@ for drug in sorted(df["DRUG_NAME"].unique()):
             scores[name] /= N_FOLDS
         print(f"  {model_name}: " + "  ".join(f"{name}={value:.3f}" for name, value in scores.items()))
 
+        # Results is an array of dict, each dict contains the drug name, the model used, and the scores
         results.append({"Drug": drug, "Model": model_name, **scores})
 
-# One row per drug and model
+# One row per drug and model (we have 13 drugs each with 6 models => 13*6=78 rows)
 results_df = pd.DataFrame(results)
 print("\n", results_df.round(3).to_string(index=False))
 
@@ -196,12 +203,13 @@ results_df.to_csv("drug_model_metrics.csv", index=False)
 METRICS = ["MAE", "MSE", "RMSE", "R2"]
 MODEL_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300"]
 FIG_DIR = "figures"
+# Create "figures" subfolder to save the drug metrics plots
 os.makedirs(FIG_DIR, exist_ok=True)
 
 model_names = results_df["Model"].unique().tolist()
 n_models = len(model_names)
-bar_width = 0.8 / n_models          # the 6 bars of a group share 80% of the space
-group_pos = np.arange(len(METRICS)) # x position of each metric group
+bar_width = 0.8 / n_models              # the 6 bars of a group share 80% of the space
+group_pos = np.arange(len(METRICS))     # x position of each metric group
 
 for drug in sorted(results_df["Drug"].unique()):
     # Metrics of every model for the current drug, in the same model order
@@ -211,13 +219,16 @@ for drug in sorted(results_df["Drug"].unique()):
     best = {m: drug_results[m].idxmax() if m == "R2" else drug_results[m].idxmin() for m in METRICS}
 
     fig, ax = plt.subplots(figsize=(12, 6))
+    # For current drug iterate through all models used
     for i, (model_name, color) in enumerate(zip(model_names, MODEL_COLORS)):
         # Shift each model's bars so they sit side by side inside every group
         offset = (i - (n_models - 1) / 2) * bar_width
         bars = ax.bar(group_pos + offset, drug_results.loc[model_name, METRICS],
                       width=bar_width * 0.9, color=color, label=model_name)
+        
         # Value on top of each bar, tilted so the 6 labels of a group don't overlap
         labels = ax.bar_label(bars, fmt="%.3f", padding=5, fontsize=8, rotation=45, color="#333333")
+        
         # Put the best value of each metric inside a rectangle
         for label, metric in zip(labels, METRICS):
             if best[metric] == model_name:
