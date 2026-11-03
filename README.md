@@ -49,6 +49,13 @@ This gives 13 drugs × 6 models = 78 sets of metrics.
 
 The best model for each drug is the one with the lowest cross-validated RMSE.
 
+#### Why RMSE is used to choose the best model
+
+- **R² would pick the same models.** On a given test set, R² = 1 − MSE / Var(y_test). All models for a drug are tested on the same folds, so Var(y_test) is the same for each of them. Lower MSE therefore means higher R², and RMSE is just √MSE, so the three metrics rank the models identically. Because the metrics are averaged over 5 folds, R² and RMSE could in principle disagree by a tiny margin, but in these results MSE, RMSE and R² choose the same best model for all 13 drugs.
+- **Combining the four metrics adds little.** MSE, RMSE and R² carry the same information, so a combined score would count RMSE three times. MAE is the only one that differs: it weighs all errors equally, while RMSE penalizes large errors more. MAE chooses a different best model for 3 drugs (5-Fluorouracil: Gradient Boosting Machine instead of CatBoost; Pictilisib: Gradient Boosting Machine instead of XGBoost; Staurosporine: LightGBM instead of Gradient Boosting Machine), but the MAE gaps there are about 0.005, well within the variation between folds.
+- **RMSE suits the task.** It is in the units of the target (log IC50), it penalizes large errors heavily (a badly wrong sensitivity prediction is worse than several small errors), and it is the usual metric for GDSC drug-response prediction.
+- **R² is still reported**, because it is unitless. The spread of `LN_IC50` differs between drugs, so RMSE values cannot be compared across drugs (e.g. 0.64 for MG-132 versus 1.29 for Docetaxel), while R² can: it gives the share of each drug's variance that the model explains.
+
 ### 3. SHAP feature importance
 
 For each drug, its best model is refit on all of that drug's data and explained with SHAP (`shap.TreeExplainer`, which computes exact SHAP values for tree-based models). A gene's importance is its mean absolute SHAP value over all cell lines: how much it moves the predicted `LN_IC50`, on average, in either direction. The 10 most important genes per drug are plotted and saved.
