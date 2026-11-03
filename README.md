@@ -70,6 +70,7 @@ Running the script produces:
 | `figures/<drug>.png` | 13 grouped bar charts, one per drug: the four metrics on the x-axis, one bar per model, with value labels |
 | `shap_top10_features.csv` | The top 10 genes per drug with their rank and mean \|SHAP\| value |
 | `shap_plots/<drug>_shap.png` | 13 SHAP bar plots, one per drug, showing its top 10 genes |
+| `shared_genes.png` | Horizontal bar chart of the genes in the top 10 of at least 2 drugs, with the number of drugs for each |
 
 The full cross-validation (390 model fits) takes several hours, mostly because of the Gradient Boosting Machine.
 

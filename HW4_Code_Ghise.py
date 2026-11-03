@@ -292,7 +292,31 @@ for _, row in best_df.iterrows():
     fig.tight_layout()
     fig.savefig(os.path.join(SHAP_DIR, f"{drug}_shap.png"), dpi=150)
 
+
 # Save the top genes of every drug for the report
-pd.DataFrame(top_features).to_csv("shap_top10_features.csv", index=False)
+top_features_df = pd.DataFrame(top_features)
+top_features_df.to_csv("shap_top10_features.csv", index=False)
+
+
+# Genes shared across drugs: number of drugs that have the gene in their top 10
+shared = top_features_df.groupby("Gene")["Drug"].nunique()
+# Keep genes in at least 2 drugs, most shared first (ties alphabetical)
+shared = shared[shared >= 2].sort_index().sort_values(ascending=False, kind="stable")
+
+fig, ax = plt.subplots(figsize=(10, 7))
+# Highlight the most shared gene
+colors = ["#c39a4a" if v == shared.max() else "#2a78d6" for v in shared.values]
+bars = ax.barh(shared.index, shared.values, color=colors, height=0.7)
+ax.bar_label(bars, padding=3, fontsize=10, fontweight="bold", color="#333333")
+ax.invert_yaxis()                       # most shared gene on top
+ax.set_title(f"Number of drugs with the gene in their top {TOP_K}", fontsize=13)
+ax.set_xlabel("Number of drugs")
+ax.set_xlim(0, shared.max() + 1)
+ax.xaxis.get_major_locator().set_params(integer=True)
+ax.spines[["top", "right"]].set_visible(False)
+ax.grid(axis="x", color="#e5e5e5", linewidth=0.8)
+ax.set_axisbelow(True)
+fig.tight_layout()
+fig.savefig("shared_genes.png", dpi=150)
 
 plt.show()
