@@ -11,6 +11,7 @@ from lightgbm import LGBMRegressor
 from catboost import CatBoostRegressor
 from sklearn.metrics import mean_squared_error, root_mean_squared_error, mean_absolute_error, r2_score
 
+# Setup constants
 CSV_PATH = "hw4-drug-screening-data.csv"
 N_FOLDS = 5
 RANDOM_STATE = 42
@@ -35,6 +36,7 @@ ax.bar_label(bars, padding=3, fontsize=9, color="#333333")
 ax.set_title(f"Samples per drug ({counts.size} drugs)", loc="center", fontsize=13)
 ax.set_xlabel("Drug")
 ax.set_ylabel("Number of samples")
+# No overlap on top size where labels are
 ax.set_ylim(0, counts.max() * 1.2)
 ax.tick_params(axis="x", labelrotation=45)
 plt.setp(ax.get_xticklabels(), ha="right", rotation_mode="anchor")
@@ -54,7 +56,8 @@ all_missing = missing.all()
 empty_genes = all_missing[all_missing].index.tolist()
 print(f"Genes with all values missing: {len(empty_genes)}")
 if (len(empty_genes) > 0):
- print(f"Empty genes: {empty_genes}")   
+    # None found here
+    print(f"Empty genes: {empty_genes}")   
 
 # Check for constant values in the data set
 constant_genes = df[genes].columns[df[genes].nunique() <= 1].tolist()
@@ -115,28 +118,29 @@ models = {
         learning_rate=0.05,
         max_depth=4,
         subsample=0.8,
-        colsample_bytree=0.5,     # each tree sees a random 50% of genes
+        colsample_bytree=0.5,       # each tree sees a random 50% of genes
         n_jobs=-1,
         random_state=RANDOM_STATE),
     "LightGBM": lambda: LGBMRegressor(
         n_estimators=300,
         learning_rate=0.05,
-        num_leaves=15,            # LightGBM limits leaves instead of depth
+        num_leaves=15,              # LightGBM limits leaves instead of depth
         subsample=0.8,
-        subsample_freq=1,         # needed for subsample to take effect
+        subsample_freq=1,           # needed for subsample to take effect
         colsample_bytree=0.5,
         n_jobs=-1,
         random_state=RANDOM_STATE,
-        verbose=-1),               # hide training warnings
+        verbose=-1),                # hide training warnings
     "CatBoost": lambda: CatBoostRegressor(
         iterations=300,
         learning_rate=0.05,
         depth=4,
         allow_writing_files=False,  # don't create the catboost_info folder
         random_seed=RANDOM_STATE,
-        verbose=0),              # don't print every training round
+        verbose=0),                 # don't print every training round
 }
 
+# Initialize k-fold object
 kf = KFold(n_splits=N_FOLDS, shuffle=True, random_state=RANDOM_STATE)
 results = []
 
@@ -190,7 +194,7 @@ for drug in sorted(df["DRUG_NAME"].unique()):
 results_df = pd.DataFrame(results)
 print("\n", results_df.round(3).to_string(index=False))
 
-# Best model per drug (lowest RMSE)
+# Best model per drug (lowest RMSE) -> can also choose lowest MAE, MSE or highest R2
 best_df = results_df.loc[results_df.groupby("Drug")["RMSE"].idxmin()]
 print("\nBest model per drug (by RMSE):")
 print(best_df.round(3).to_string(index=False))
@@ -282,7 +286,7 @@ for _, row in best_df.iterrows():
         top_features.append({"Drug": drug, "Model": model_name, "Rank": rank,
                              "Gene": gene, "Mean |SHAP|": value})
 
-    # Bar plot of only the top 10 genes (no "sum of other features" bar, which would dwarf them)
+    # Bar plot of only the top 10 genes
     top_idx = [genes.index(g) for g in importance.index]
     plt.figure()
     shap.plots.bar(shap_values[:, top_idx], max_display=TOP_K, show=False)
@@ -300,7 +304,7 @@ top_features_df.to_csv("shap_top10_features.csv", index=False)
 
 # Genes shared across drugs: number of drugs that have the gene in their top 10
 shared = top_features_df.groupby("Gene")["Drug"].nunique()
-# Keep genes in at least 2 drugs, most shared first (ties alphabetical)
+# Keep genes in at least 2 drugs, most shared first (if equal, take alphabetically)
 shared = shared[shared >= 2].sort_index().sort_values(ascending=False, kind="stable")
 
 fig, ax = plt.subplots(figsize=(10, 7))
